@@ -1,8 +1,10 @@
 import shutil
 import os
 import sys
+import re
 import threading
 import argparse
+import pandas as pd
 
 
 ## Parameters
@@ -92,6 +94,14 @@ def load_bam(config_dict):
     bams = get_files(config_dict["bam_path"], "bam")
     return bams
 
+def load_flagstat(config_dict):
+    flagstats = get_files(config_dict["bam_path"], "flagstat")
+    return flagstats
+
+def load_count_file(config_dict):
+    count_files = get_files(config_dict["count_path"], "count")
+    return count_files
+
 def aligner(config_dict):
     fqs = load_fastq(config_dict)
     cmds = []
@@ -130,10 +140,13 @@ def sam2bam(config_dict):
     for sam in sams:
         sample_id = sam.split(".")[0]
         sam = os.path.join(config_dict["sam_path"], sam)
-        bam = os.path.join(config_dict["bam_path"], sample_id + ".sorted.bam")
+        bam = os.path.join(config_dict["bam_path"], sample_id+".sorted.bam")
+        flagstat = os.path.join(config_dict["bam_path"], sample_id+".flagstat")
         cmd1 = "samtools sort -@ %s %s > %s" % (threads, sam, bam)
         cmd2 = "samtools index %s" % bam
-        cmds.append([cmd1, cmd2])
+        cmd3 = "samtools flagstat %s > %s" % (bam, flagstat)
+        #cmds.append([cmd1, cmd2, cmd3])
+        cmds.append([cmd3])
     return cmds
 
 def counter(config_dict):
@@ -146,6 +159,13 @@ def counter(config_dict):
             count_file = os.path.join(config_dict["count_path"], sample_id+".count")
             cmd = htseq(config_dict, bam, count_file)
             cmds.append(cmd)
+    if config_dict["counter"] == "featureCounts":
+        for bam in bams:
+            sample_id = bam.split(".")[0]
+            bam = os.path.join(config_dict["bam_path"], bam)
+            count_file = os.path.join(config_dict["count_path"], sample_id+".count")
+            cmd = feature_counts(config_dict, bam, count_file)
+            cmds.append(cmd)
     return cmds
 
 def htseq(config_dict, bam, count_file):
@@ -155,8 +175,59 @@ def htseq(config_dict, bam, count_file):
     cmd = ["htseq-count --format bam --order pos --stranded no --type exon --idattr=gene_id --additional-attr gene_name --additional-attr gene_type %s %s > %s" %(bam, config_dict["gene_gtf"], count_file)]
     return cmd
 
-def export_matrix(config_dict):
-    pass
+def feature_counts(config_dict, bam, count_file):
+    cmd = ["featureCounts --extraAttributes gene_name,gene_type -a %s -o %s %s" % (config_dict["gene_gtf"], count_file, bam)]
+    return cmd
+
+def export_matrix(config_dict, mat_file):
+    count_files = load_count_file(config_dict)
+    col_name,mat = [],[]
+    if config_dict["counter"] == "htseq-count":
+        for cf in count_files:
+            sample_id = cf.split(".")[0]
+            cf = os.path.join(config_dict["count_path"], cf)
+            mat.append(pd.read_csv(cf, sep='\t', header=None, index_col=0)[3])
+            col_name.append(sample_id)
+        mat = pd.concat(mat, axis=1)
+        mat = mat.drop(mat.index[len(mat)-5:])
+    if config_dict["counter"] == "featureCounts":
+        for cf in count_files:
+            sample_id = cf.split(".")[0]
+            cf = os.path.join(config_dict["count_path"], cf)
+            selected_col = os.path.join(config_dict["bam_path"], sample_id+".sorted.bam")
+            mat.append(pd.read_csv(cf, sep='\t', header=1, index_col=0)[selected_col])
+            col_name.append(sample_id)
+        mat = pd.concat(mat, axis=1)
+    mat.columns = col_name
+    mat.to_csv(mat_file, sep='\t')
+
+def export_align_rates(config_dict, output):
+    flagstats = load_flagstat(config_dict)
+    mr = re.compile(r"([\d\.]+%)")
+    fo = open(output, "w")
+    if config_dict["fq2"] == "NA":
+        for fs in flagstats:
+            sample_id = fs.split(".")[0]
+            fs = os.path.join(config_dict["bam_path"], fs)
+            align_rates = mr.findall("".join(open(fs).readlines()))[0]
+            align_rates = "%.4lf" % (float(align_rates.rstrip("%")) / 100)
+            fo.write("%s\t%s\n" % (sample_id, align_rates))
+    fo.close()
+
+def export_assign_rates(config_dict, output):
+    if config_dict["counter"] == "htseq-count":
+        pass
+    if config_dict["counter"] == "featureCounts":
+        fo = open(output, "w")
+        summaries = get_files(config_dict["count_path"], "summary")
+        for summ in summaries:
+            sample_id = summ.split(".")[0]
+            summ = os.path.join(config_dict["count_path"], summ)
+            pdfm = pd.read_csv(summ, sep="\t", header=None, skiprows=1, index_col=0)
+            ass = int(pdfm.loc["Assigned"])
+            total = sum(pdfm[1])
+            ass_r = "%.4lf" % (float(ass) / total)
+            fo.write("%s\t%s\n" % (sample_id, ass_r))
 
 
 if __name__ == '__main__':
@@ -164,7 +235,7 @@ if __name__ == '__main__':
     check_config(config_dict)
     write_config(config_dict)
     # step1. alignment
-    #for cmd in aligner(config_dict): os.system(cmd)
+    for cmd in aligner(config_dict): os.system(cmd)
     # step2. sam to bam
     cmds = sam2bam(config_dict)
     exe_parallel(cmds, config_dict["cpu"])
@@ -172,3 +243,9 @@ if __name__ == '__main__':
     cmds = counter(config_dict)
     exe_parallel(cmds, config_dict["cpu"])
     # step4. export expression matrix
+    mat_file = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".mtx")
+    align_meta = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".alignrates")
+    assign_meta = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".assignrates")
+    export_matrix(config_dict, mat_file)
+    export_align_rates(config_dict, align_meta)
+    export_assign_rates(config_dict, assign_meta)

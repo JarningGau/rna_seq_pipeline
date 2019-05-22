@@ -1,6 +1,8 @@
 # [global]
 ## cores
 cpu=20
+## expression matrix file profix
+matrix_file=GSE92280_featureCounts
 # paths
 current_path=./data/GSE92280
 ## log path
@@ -12,8 +14,8 @@ sam_path=./data/GSE92280/sam
 ## sorted results
 bam_path=./data/GSE92280/bam
 ## count results
-count_path=./data/GSE92280/count
-# [aligner]
+count_path=./data/GSE92280/featureCounts
+# [aligner] hisat2
 ## aligner software
 aligner=hisat2
 ## sep for sample id
@@ -23,8 +25,8 @@ fq1=.fastq.gz
 fq2=NA
 ## hisat2 specific config
 hisat2index=/home/biostacs/data/data1/reference/hg38/Hisat2Index/genome
-# [counter]
+# [counter] htseq-count | featureCounts
 ## counter software
-counter=htseq-count
+counter=featureCounts
 ## gtf annotation
 gene_gtf=/home/biostacs/data/data1/reference/hg38/Annotation/gencode.v30.annotation.gtf
