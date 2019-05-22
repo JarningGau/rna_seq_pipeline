@@ -145,8 +145,7 @@ def sam2bam(config_dict):
         cmd1 = "samtools sort -@ %s %s > %s" % (threads, sam, bam)
         cmd2 = "samtools index %s" % bam
         cmd3 = "samtools flagstat %s > %s" % (bam, flagstat)
-        #cmds.append([cmd1, cmd2, cmd3])
-        cmds.append([cmd3])
+        cmds.append([cmd1, cmd2, cmd3])
     return cmds
 
 def counter(config_dict):
