@@ -1,6 +1,6 @@
 # rna_seq_pipeline
 
-> This is a customized script intergrate tools for reference-depdendent RNA seq data analysis. Users can modify the config file to suit for their own demands.
+> This is a customized script intergrating tools for reference-depdendent RNA seq data analysis. Users can modify the config file to suit for their own demands.
 
 ### Format
 
