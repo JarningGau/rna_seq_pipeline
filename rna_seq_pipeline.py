@@ -170,12 +170,11 @@ def counter(config_dict):
 def htseq(config_dict, bam, count_file):
     # default settings
     # --mode union
-    # --minaqual 10
-    cmd = ["htseq-count --format bam --order pos --stranded no --type exon --idattr=gene_id --additional-attr gene_name --additional-attr gene_type %s %s > %s" %(bam, config_dict["gene_gtf"], count_file)]
+    cmd = ["htseq-count --minaqual 60 --format bam --order pos --stranded no --type exon --idattr=gene_id --additional-attr gene_name --additional-attr gene_type %s %s > %s" %(bam, config_dict["gene_gtf"], count_file)]
     return cmd
 
 def feature_counts(config_dict, bam, count_file):
-    cmd = ["featureCounts --extraAttributes gene_name,gene_type -a %s -o %s %s" % (config_dict["gene_gtf"], count_file, bam)]
+    cmd = ["featureCounts -Q 60 --extraAttributes gene_name,gene_type -a %s -o %s %s" % (config_dict["gene_gtf"], count_file, bam)]
     return cmd
 
 def export_matrix(config_dict, mat_file):
