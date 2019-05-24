@@ -174,7 +174,10 @@ def htseq(config_dict, bam, count_file):
     return cmd
 
 def feature_counts(config_dict, bam, count_file):
-    cmd = ["featureCounts -Q 60 --extraAttributes gene_name,gene_type -a %s -o %s %s" % (config_dict["gene_gtf"], count_file, bam)]
+    if config_dict["fq2"] == "NA":
+        cmd = ["featureCounts -Q 60 --extraAttributes gene_name,gene_type -a %s -o %s %s" % (config_dict["gene_gtf"], count_file, bam)]
+    else:
+        cmd = ["featureCounts -p -Q 60 --extraAttributes gene_name,gene_type -a %s -o %s %s" % (config_dict["gene_gtf"], count_file, bam)]
     return cmd
 
 def export_matrix(config_dict, mat_file):
