@@ -2,6 +2,7 @@ import shutil
 import os
 import sys
 import re
+import time
 import threading
 import argparse
 import pandas as pd
@@ -243,6 +244,7 @@ if __name__ == '__main__':
     cmds = counter(config_dict)
     exe_parallel(cmds, config_dict["cpu"])
     # step4. export expression matrix
+    time.sleep(60)
     mat_file = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".mtx")
     align_meta = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".alignrates")
     assign_meta = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".assignrates")
