@@ -22,6 +22,9 @@
 ### Usage
 
 ```shell
-python rna_seq_pipeline.py -c config.txt
+# For single-end
+python rna_seq_pipeline.py -c SE.conf
+# For pair-end
+python rna_seq_pipeline.py -c PE.conf
 ```
 
