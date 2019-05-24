@@ -44,13 +44,16 @@ def make_parallel(cmds, threads):
         j = (j+1) % threads
     return cmd_list
 
-def exe_parallel(cmd, threads):
-    cmds_list = make_parallel(cmd, threads)
+def exe_parallel(cmds, threads):
+    cmds_list = make_parallel(cmds, threads)
     for cmd_batch in cmds_list:
         for cmd in cmd_batch:
             t = runParallel(cmd)
             t.start()
         t.join()
+
+def exe_tandem(cmds):
+    for cmd in cmds: os.system(cmd)
 
 def load_config():
     config_dict = {}
@@ -116,36 +119,33 @@ def aligner(config_dict):
                 fq1 = os.path.join(config_dict["fq_path"], fq)
                 fq2 = "NA"
             sam = os.path.join(config_dict["sam_path"], sample_id+".sam")
-            cmds.append(hisat2(config_dict, sample_id, fq1, fq2, sam))
+            bam = os.path.join(config_dict["bam_path"], sample_id+".sorted.bam")
+            cmds.append(hisat2(config_dict, sample_id, fq1, fq2, sam, bam))
     return cmds
 
-def hisat2(config_dict, sample_id, fq1, fq2, sam):
+def hisat2(config_dict, sample_id, fq1, fq2, sam, bam):
     # for unpaired reads | -U <r> |
     if fq2 == "NA":
-        cmd = "hisat2 -p %s --rg-id=%s --rg PL:ILLUMINA -x %s --dta -U %s -S %s" %(
+        cmd1 = "hisat2 -p %s --rg-id=%s --rg PL:ILLUMINA -x %s --dta -U %s -S %s" %(
             config_dict["cpu"], sample_id, config_dict["hisat2index"], fq1, sam)
     # for paired reads | -1 <m1> -2 <m2> |
     else:
-        cmd = "hisat2 -p %s --rg-id=%s --rg PL:ILLUMINA -x %s --dta -1 %s -2 %s -S %s" %(
+        cmd1 = "hisat2 -p %s --rg-id=%s --rg PL:ILLUMINA -x %s --dta -1 %s -2 %s -S %s" %(
             config_dict["cpu"], sample_id, config_dict["hisat2index"], fq1, fq2, sam)
-    return cmd
+    cmd2 = "samtools sort -@ %s %s > %s" % (config_dict["cpu"], sam, bam)
+    cmd3 = "rm %s" % sam
+    return [cmd1, cmd2, cmd3]
 
 def sam2bam(config_dict):
     cmds = []
-    sams = load_sam(config_dict)
-    if len(sams)*2 <= config_dict["cpu"]:
-        threads = int(config_dict["cpu"]) / len(sams)
-    else:
-        threads = 1
-    for sam in sams:
-        sample_id = sam.split(".")[0]
-        sam = os.path.join(config_dict["sam_path"], sam)
-        bam = os.path.join(config_dict["bam_path"], sample_id+".sorted.bam")
+    bams = load_bam(config_dict)
+    for bam in bams:
+        sample_id = bam.split(".")[0]
+        bam = os.path.join(config_dict["bam_path"], bam)
         flagstat = os.path.join(config_dict["bam_path"], sample_id+".flagstat")
-        cmd1 = "samtools sort -@ %s %s > %s" % (threads, sam, bam)
-        cmd2 = "samtools index %s" % bam
-        cmd3 = "samtools flagstat %s > %s" % (bam, flagstat)
-        cmds.append([cmd1, cmd2, cmd3])
+        cmd1 = "samtools index %s" % bam
+        cmd2 = "samtools flagstat %s > %s" % (bam, flagstat)
+        cmds.append([cmd1, cmd2])
     return cmds
 
 def counter(config_dict):
@@ -203,13 +203,12 @@ def export_align_rates(config_dict, output):
     flagstats = load_flagstat(config_dict)
     mr = re.compile(r"([\d\.]+%)")
     fo = open(output, "w")
-    if config_dict["fq2"] == "NA":
-        for fs in flagstats:
-            sample_id = fs.split(".")[0]
-            fs = os.path.join(config_dict["bam_path"], fs)
-            align_rates = mr.findall("".join(open(fs).readlines()))[0]
-            align_rates = "%.4lf" % (float(align_rates.rstrip("%")) / 100)
-            fo.write("%s\t%s\n" % (sample_id, align_rates))
+    for fs in flagstats:
+        sample_id = fs.split(".")[0]
+        fs = os.path.join(config_dict["bam_path"], fs)
+        align_rates = mr.findall("".join(open(fs).readlines()))[0]
+        align_rates = "%.4lf" % (float(align_rates.rstrip("%")) / 100)
+        fo.write("%s\t%s\n" % (sample_id, align_rates))
     fo.close()
 
 def export_assign_rates(config_dict, output):
@@ -233,7 +232,7 @@ if __name__ == '__main__':
     check_config(config_dict)
     write_config(config_dict)
     # step1. alignment
-    for cmd in aligner(config_dict): os.system(cmd)
+    for cmds in aligner(config_dict): exe_tandem(cmds)
     # step2. sam to bam
     cmds = sam2bam(config_dict)
     exe_parallel(cmds, config_dict["cpu"])
