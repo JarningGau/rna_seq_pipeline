@@ -45,7 +45,7 @@ def make_parallel(cmds, threads):
     return cmd_list
 
 def exe_parallel(cmd, threads):
-    cmds_list = make_parallel(cmd, config_dict["cpu"])
+    cmds_list = make_parallel(cmd, threads)
     for cmd_batch in cmds_list:
         for cmd in cmd_batch:
             t = runParallel(cmd)
@@ -126,7 +126,7 @@ def hisat2(config_dict, sample_id, fq1, fq2, sam):
             config_dict["cpu"], sample_id, config_dict["hisat2index"], fq1, sam)
     # for paired reads | -1 <m1> -2 <m2> |
     else:
-        cmd = "hisat2 -p %s --rg-id=%s --rg PL:ILLUMINA -x %s --dat -1 %s -2 %s -S %s" %(
+        cmd = "hisat2 -p %s --rg-id=%s --rg PL:ILLUMINA -x %s --dta -1 %s -2 %s -S %s" %(
             config_dict["cpu"], sample_id, config_dict["hisat2index"], fq1, fq2, sam)
     return cmd
 
