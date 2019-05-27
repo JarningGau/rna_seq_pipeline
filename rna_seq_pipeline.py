@@ -24,8 +24,11 @@ class runParallel(threading.Thread):
         self.cmds = cmds
 
     def run(self):
-        for cmd in self.cmds:
+        if type(self.cmds) == str:
             os.system(cmd)
+        else:
+            for cmd in self.cmds:
+                os.system(cmd)
 
 
 def make_parallel(cmds, threads):
