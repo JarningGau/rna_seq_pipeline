@@ -18,6 +18,8 @@
 - hisat2 2.1.0
 - featureCounts 1.6.4 (subread 1.6.4)
 - HTSeq 0.11.2
+- umi_tools 0.5.5 (python2)
+- umi_tools 1.0.0 (python3)
 
 ### Usage
 

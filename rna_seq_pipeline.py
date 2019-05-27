@@ -26,9 +26,11 @@ class runParallel(threading.Thread):
     def run(self):
         if type(self.cmds) == str:
             os.system(cmd)
+            #print(cmd)
         else:
             for cmd in self.cmds:
                 os.system(cmd)
+                #print(cmd)
 
 
 def make_parallel(cmds, threads):
@@ -77,6 +79,7 @@ def check_config(config_dict):
     mkdirs(config_dict["sam_path"])
     mkdirs(config_dict["bam_path"])
     mkdirs(config_dict["count_path"])
+    if config_dict["UMI_based"] == "yes": mkdirs(config_dict["dedup_path"])
 
 def write_config(config_dict):
     shutil.copy(paras.config, config_dict["current_path"])
@@ -99,6 +102,10 @@ def load_sam(config_dict):
 
 def load_bam(config_dict):
     bams = get_files(config_dict["bam_path"], "bam")
+    return bams
+
+def load_dedup_bam(config_dict):
+    bams = get_files(config_dict["dedup_path"], "dedup.sorted.bam")
     return bams
 
 def load_flagstat(config_dict):
@@ -152,20 +159,38 @@ def sam2bam(config_dict):
         cmds.append([cmd1, cmd2])
     return cmds
 
-def counter(config_dict):
+def umi_dedup(config_dict):
+    cmds = []
     bams = load_bam(config_dict)
+    for bam in bams:
+        sample_id = bam.split(".")[0]
+        bam = os.path.join(config_dict["bam_path"], bam)
+        fo_prefix = os.path.join(config_dict["dedup_path"], sample_id)
+        cmd1 = "umi_tools dedup -I %s --output-stats=%s -S %s.dedup.bam" %(bam, fo_prefix, fo_prefix)
+        cmd2 = "samtools sort -@ 1 -o %s.dedup.sorted.bam %s.dedup.bam" % (fo_prefix, fo_prefix)
+        cmd3 = "samtools index %s.dedup.sorted.bam" % fo_prefix
+        cmds.append([cmd1, cmd2, cmd3])
+    return cmds
+
+def counter(config_dict):
+    if config_dict["UMI_based"] == 'yes':
+        bams = load_dedup_bam(config_dict)
+        bam_path = config_dict["dedup_path"]
+    else:
+        bams = load_bam(config_dict)
+        bam_path = config_dict["bam_path"]
     cmds = []
     if config_dict["counter"] == "htseq-count":
         for bam in bams:
             sample_id = bam.split(".")[0]
-            bam = os.path.join(config_dict["bam_path"], bam)
-            count_file = os.path.join(config_dict["count_path"], sample_id+".count")
+            bam = os.path.join(bam_path, bam)
+            count_file = os.path.join(onfig_dict["count_path"], sample_id+".count")
             cmd = htseq(config_dict, bam, count_file)
             cmds.append(cmd)
     if config_dict["counter"] == "featureCounts":
         for bam in bams:
             sample_id = bam.split(".")[0]
-            bam = os.path.join(config_dict["bam_path"], bam)
+            bam = os.path.join(bam_path, bam)
             count_file = os.path.join(config_dict["count_path"], sample_id+".count")
             cmd = feature_counts(config_dict, bam, count_file)
             cmds.append(cmd)
@@ -199,7 +224,10 @@ def export_matrix(config_dict, mat_file):
         for cf in count_files:
             sample_id = cf.split(".")[0]
             cf = os.path.join(config_dict["count_path"], cf)
-            selected_col = os.path.join(config_dict["bam_path"], sample_id+".sorted.bam")
+            if config_dict["UMI_based"] == "yes":
+                selected_col = os.path.join(config_dict["dedup_path"], sample_id+".dedup.sorted.bam")
+            else:
+                selected_col = os.path.join(config_dict["bam_path"], sample_id+".sorted.bam")
             mat.append(pd.read_csv(cf, sep='\t', header=1, index_col=0)[selected_col])
             col_name.append(sample_id)
         mat = pd.concat(mat, axis=1)
@@ -241,13 +269,13 @@ if __name__ == '__main__':
     # step1. alignment
     for cmds in aligner(config_dict): exe_tandem(cmds)
     # step2. sam to bam
-    cmds = sam2bam(config_dict)
-    exe_parallel(cmds, config_dict["cpu"])
+    exe_parallel(sam2bam(config_dict), config_dict["cpu"])
+    if config_dict["UMI_based"] == "yes": exe_parallel(umi_dedup(config_dict), config_dict["cpu"])
     # step3. counting
     cmds = counter(config_dict)
     exe_parallel(cmds, config_dict["cpu"])
     # step4. export expression matrix
-    time.sleep(60)
+    #time.sleep(60)
     mat_file = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".mtx")
     align_meta = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".alignrates")
     assign_meta = os.path.join(config_dict["current_path"], config_dict["matrix_file"]+".assignrates")
