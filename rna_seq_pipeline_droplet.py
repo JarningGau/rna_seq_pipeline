@@ -135,9 +135,9 @@ def assign(config_dict):
 
 def count(config_dict):
     cmds = []
-    for bam in [f for f in os.listdir(config_dict["bam_path"]) if f.endswith("assigned.sorted.bam")]:
+    for bam in [f for f in os.listdir(config_dict["bam_path"]) if f.endswith("sorted.assigned.bam")]:
         sample_id = bam.split(".")[0]
-        cmd = "umi_tools count --per-gene --gene-tag=XT --assigned-status-tag=XS --per-cell -I %s.assigned.sorted.bam -S %s.counts.tsv.gz" % (os.path.join(config_dict["bam_path"], sample_id), os.path.join(config_dict["count_path"], sample_id))
+        cmd = "umi_tools count --per-gene --gene-tag=XT --assigned-status-tag=XS --per-cell -I %s.sorted.assigned.bam -S %s.counts.tsv.gz" % (os.path.join(config_dict["bam_path"], sample_id), os.path.join(config_dict["count_path"], sample_id))
         cmds.append(cmd)
     return cmds
 
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     check_config(config_dict)
     write_config(config_dict)
     # step1. alignment
-    #for cmds in aligner(config_dict): exe_tandem(cmds)
+    for cmds in aligner(config_dict): exe_tandem(cmds)
     # step2. assignment
     for cmds in assign(config_dict): exe_tandem(cmds)
     # step3. count
